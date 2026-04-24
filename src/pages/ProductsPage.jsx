@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import DepartmentPicker from "../components/DepartmentPicker";
 
+const API = import.meta.env.VITE_API_URL;
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   const [searchParams] = useSearchParams();
-  const mode = searchParams.get("mode"); // add | edit | null
+  const mode = searchParams.get("mode");
   const editId = searchParams.get("id");
   const scannedBarcode = searchParams.get("barcode");
 
@@ -24,12 +26,12 @@ export default function ProductsPage() {
     department: "",
     barcode: "",
     quantity: "",
-    notes: ""
+    notes: "",
   });
 
   /* ================= LOAD PRODUCTS ================= */
   function loadProducts() {
-    fetch("http://localhost:4000/products")
+    fetch(`${API}/products`)
       .then(r => r.json())
       .then(setProducts)
       .catch(err => console.error("Failed to load products", err));
@@ -39,31 +41,23 @@ export default function ProductsPage() {
   useEffect(() => {
     loadProducts();
 
-    fetch("http://localhost:4000/departments")
+    fetch(`${API}/departments`)
       .then(r => r.json())
-      .then(data => {
-        const normalized = data.map((d, index) => ({
-          id: d.id ?? index,
-          name:
-            typeof d === "string"
-              ? d
-              : d.name || d.department || ""
-        }));
-        setDepartments(normalized);
-      })
-      .catch(err => {
-        console.error("Failed to load departments:", err);
-        setDepartments([]);
-      });
+      .then(data =>
+        setDepartments(
+          data.map(d => ({ id: d._id, name: d.name }))
+        )
+      )
+      .catch(() => setDepartments([]));
   }, []);
 
   /* ================= EDIT MODE ================= */
   useEffect(() => {
     if (mode === "edit" && editId) {
-      fetch("http://localhost:4000/products")
+      fetch(`${API}/products`)
         .then(r => r.json())
         .then(all => {
-          const found = all.find(p => String(p.id) === String(editId));
+          const found = all.find(p => p._id === editId);
           if (found) {
             setEditingProduct(found);
             setForm(found);
@@ -81,45 +75,32 @@ export default function ProductsPage() {
     }
   }, [mode, scannedBarcode]);
 
-  /* ================= VALIDATION (ADD ONLY) ================= */
+  /* ================= VALIDATION ================= */
   function validateForm() {
     const newErrors = {};
-
-    if (!form.itemName.trim()) {
-      newErrors.itemName = "Item name is required";
-    }
-
-    if (!form.price || isNaN(form.price)) {
-      newErrors.price = "Valid price is required";
-    }
-
-    if (!form.department) {
-      newErrors.department = "Department is required";
-    }
-
+    if (!form.itemName.trim()) newErrors.itemName = "Item name is required";
+    if (!form.price || isNaN(form.price)) newErrors.price = "Valid price is required";
+    if (!form.department) newErrors.department = "Department is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
-  /* ================= SAVE ================= */
+  /* ================= SAVE PRODUCT ================= */
   function saveProduct(isEdit) {
-    // ✅ enforce mandatory fields only when ADDING
-    if (!isEdit) {
-      if (!validateForm()) return;
-    }
+    if (!isEdit && !validateForm()) return;
 
     fetch(
       isEdit
-        ? `http://localhost:4000/products/${editingProduct.id}`
-        : "http://localhost:4000/products",
+        ? `${API}/products/${editingProduct._id}`
+        : `${API}/products`,
       {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
-          quantity: Number(form.quantity) || 0
-        })
+          quantity: Number(form.quantity) || 0,
+        }),
       }
     ).then(() => {
       loadProducts();
@@ -131,24 +112,12 @@ export default function ProductsPage() {
   function deleteProduct() {
     if (!editingProduct) return;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${editingProduct.itemName}"?\nThis action cannot be undone.`
-    );
+    if (!window.confirm("Delete this product?")) return;
 
-    if (!confirmed) return;
-
-    fetch(`http://localhost:4000/products/${editingProduct.id}`, {
-      method: "DELETE"
-    })
+    fetch(`${API}/products/${editingProduct._id}`, { method: "DELETE" })
       .then(() => {
-        setProducts(prev =>
-          prev.filter(p => p.id !== editingProduct.id)
-        );
+        setProducts(p => p.filter(x => x._id !== editingProduct._id));
         navigate("/products");
-      })
-      .catch(err => {
-        console.error("Failed to delete product", err);
-        alert("Failed to delete product");
       });
   }
 
@@ -162,7 +131,7 @@ export default function ProductsPage() {
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      fetch("http://localhost:4000/import", {
+      fetch(`${API}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -171,10 +140,10 @@ export default function ProductsPage() {
             price: r["Price"],
             department: r["Department"],
             barcode: r["Barcode"],
-            quantity: Number(r["Quantity"] || 0)
+            quantity: Number(r["Quantity"] || 0),
           }))
-        )
-      }).then(() => loadProducts());
+        ),
+      }).then(loadProducts);
     };
 
     reader.readAsArrayBuffer(file);
@@ -182,12 +151,9 @@ export default function ProductsPage() {
 
   /* ================= FILTER ================= */
   const filteredProducts = products
-  .filter(p =>
-    p.itemName.toLowerCase().includes(search.toLowerCase())
-  )
-  .sort((a, b) =>
-    a.itemName.localeCompare(b.itemName, undefined, { sensitivity: "base" })
-  );
+    .filter(p => p.itemName.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.itemName.localeCompare(b.itemName));
+
   /* ================= RENDER ================= */
   return (
     <div className="app">
@@ -197,26 +163,12 @@ export default function ProductsPage() {
 
       <div className="page-card">
         <div className="page-title">
-          <div>
-            <h1>Products</h1>
-            <p className="subtle">Manage your inventory items</p>
-          </div>
+          <h1>Products</h1>
 
           {!mode && (
             <div className="page-actions">
-              <button
-                className="pill-btn"
-                onClick={() => fileInputRef.current.click()}
-              >
+              <button className="pill-btn" onClick={() => fileInputRef.current.click()}>
                 ⬆ Import
-              </button>
-              <button
-                className="pill-btn"
-                onClick={() =>
-                  window.open("http://localhost:4000/export")
-                }
-              >
-                ⬇ Export
               </button>
             </div>
           )}
@@ -224,38 +176,23 @@ export default function ProductsPage() {
 
         {(mode === "add" || mode === "edit") && (
           <>
-            <div className="card-header">
-              <h2>{mode === "add" ? "Add Product" : "Edit Product"}</h2>
-              <p className="subtle">Manage product information</p>
-            </div>
-
             <div className="form-grid">
               <div className="form-field full">
                 <label>Item Name *</label>
                 <input
                   value={form.itemName}
-                  onChange={e => {
-                    setForm({ ...form, itemName: e.target.value });
-                    setErrors({ ...errors, itemName: null });
-                  }}
+                  onChange={e => setForm({ ...form, itemName: e.target.value })}
                 />
-                {errors.itemName && (
-                  <span className="error-text">{errors.itemName}</span>
-                )}
+                {errors.itemName && <span className="error-text">{errors.itemName}</span>}
               </div>
 
               <div className="form-field">
                 <label>Price *</label>
                 <input
                   value={form.price}
-                  onChange={e => {
-                    setForm({ ...form, price: e.target.value });
-                    setErrors({ ...errors, price: null });
-                  }}
+                  onChange={e => setForm({ ...form, price: e.target.value })}
                 />
-                {errors.price && (
-                  <span className="error-text">{errors.price}</span>
-                )}
+                {errors.price && <span className="error-text">{errors.price}</span>}
               </div>
 
               <div className="form-field">
@@ -263,9 +200,7 @@ export default function ProductsPage() {
                 <input
                   type="number"
                   value={form.quantity}
-                  onChange={e =>
-                    setForm({ ...form, quantity: e.target.value })
-                  }
+                  onChange={e => setForm({ ...form, quantity: e.target.value })}
                 />
               </div>
 
@@ -274,15 +209,10 @@ export default function ProductsPage() {
                 <DepartmentPicker
                   value={form.department}
                   departments={departments}
-                  onChange={name => {
-                    setForm({ ...form, department: name });
-                    setErrors({ ...errors, department: null });
-                  }}
+                  onChange={name => setForm({ ...form, department: name })}
                 />
                 {errors.department && (
-                  <span className="error-text">
-                    {errors.department}
-                  </span>
+                  <span className="error-text">{errors.department}</span>
                 )}
               </div>
 
@@ -290,9 +220,7 @@ export default function ProductsPage() {
                 <label>Barcode</label>
                 <input
                   value={form.barcode}
-                  onChange={e =>
-                    setForm({ ...form, barcode: e.target.value })
-                  }
+                  onChange={e => setForm({ ...form, barcode: e.target.value })}
                 />
               </div>
 
@@ -300,28 +228,18 @@ export default function ProductsPage() {
                 <label>Notes</label>
                 <textarea
                   value={form.notes}
-                  onChange={e =>
-                    setForm({ ...form, notes: e.target.value })
-                  }
+                  onChange={e => setForm({ ...form, notes: e.target.value })}
                 />
               </div>
             </div>
 
-            <div className="form-actions" style={{ justifyContent: "space-between" }}>
-              <div>
-                <button
-                  className="pill-btn"
-                  onClick={() => saveProduct(mode === "edit")}
-                >
-                  ✅ Save
-                </button>
-                <button
-                  className="pill-btn secondary"
-                  onClick={() => navigate("/products")}
-                >
-                  Cancel
-                </button>
-              </div>
+            <div className="form-actions">
+              <button className="pill-btn" onClick={() => saveProduct(mode === "edit")}>
+                ✅ Save
+              </button>
+              <button className="pill-btn secondary" onClick={() => navigate("/products")}>
+                Cancel
+              </button>
 
               {mode === "edit" && (
                 <button
@@ -329,7 +247,7 @@ export default function ProductsPage() {
                   style={{ background: "#dc2626" }}
                   onClick={deleteProduct}
                 >
-                  🗑 Delete Product
+                  🗑 Delete
                 </button>
               )}
             </div>
@@ -357,10 +275,8 @@ export default function ProductsPage() {
               <tbody>
                 {filteredProducts.map(p => (
                   <tr
-                    key={p.id}
-                    onClick={() =>
-                      navigate(`/products?mode=edit&id=${p.id}`)
-                    }
+                    key={p._id}
+                    onClick={() => navigate(`/products?mode=edit&id=${p._id}`)}
                   >
                     <td>{p.itemName}</td>
                     <td>{p.department}</td>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API = import.meta.env.VITE_API_URL;
+
 function DepartmentsPage() {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
@@ -11,50 +13,73 @@ function DepartmentsPage() {
     value: ""
   });
 
+  /* ================= LOAD ================= */
   function loadDepartments() {
-    fetch("http://localhost:4000/departments")
+    fetch(`${API}/departments`)
       .then(res => res.json())
-      .then(setDepartments);
+      .then(data => {
+        // Normalize MongoDB response
+        const normalized = data.map(d => ({
+          _id: d._id,
+          name: d.name
+        }));
+        setDepartments(normalized);
+      })
+      .catch(err => {
+        console.error("Failed to load departments", err);
+        setDepartments([]);
+      });
   }
 
   useEffect(() => {
     loadDepartments();
   }, []);
 
+  /* ================= ADD ================= */
   function addDepartment() {
     if (!newName.trim()) return;
 
-    fetch("http://localhost:4000/departments", {
+    fetch(`${API}/departments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName })
+      body: JSON.stringify({ name: newName.trim() })
     }).then(() => {
       setNewName("");
       loadDepartments();
     });
   }
 
+  /* ================= SAVE EDIT ================= */
   function saveEdit(id) {
-    fetch(`http://localhost:4000/departments/${id}`, {
+    if (!editing.value.trim()) {
+      setEditing({ id: null, value: "" });
+      return;
+    }
+
+    fetch(`${API}/departments/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editing.value })
+      body: JSON.stringify({ name: editing.value.trim() })
     }).then(() => {
       setEditing({ id: null, value: "" });
       loadDepartments();
     });
   }
 
+  /* ================= DELETE ================= */
   function deleteDepartment(id) {
     if (!window.confirm("Delete this department?\nProducts will NOT be deleted.")) {
       return;
     }
 
-    fetch(`http://localhost:4000/departments/${id}`, {
+    fetch(`${API}/departments/${id}`, {
       method: "DELETE"
-    }).then(loadDepartments);
+    }).then(() => {
+      setDepartments(prev => prev.filter(d => d._id !== id));
+    });
   }
 
+  /* ================= RENDER ================= */
   return (
     <div className="app">
       <button className="secondary" onClick={() => navigate("/")}>
@@ -80,23 +105,23 @@ function DepartmentsPage() {
         <thead>
           <tr>
             <th>Department Name</th>
-            <th style={{ width: 100 }}>Actions</th>
+            <th style={{ width: 120 }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {departments.map(d => (
-            <tr key={d.id}>
+            <tr key={d._id}>
               <td>
-                {editing.id === d.id ? (
+                {editing.id === d._id ? (
                   <input
                     autoFocus
                     value={editing.value}
                     onChange={e =>
-                      setEditing({ id: d.id, value: e.target.value })
+                      setEditing({ id: d._id, value: e.target.value })
                     }
-                    onBlur={() => saveEdit(d.id)}
+                    onBlur={() => saveEdit(d._id)}
                     onKeyDown={e => {
-                      if (e.key === "Enter") saveEdit(d.id);
+                      if (e.key === "Enter") saveEdit(d._id);
                       if (e.key === "Escape")
                         setEditing({ id: null, value: "" });
                     }}
@@ -105,7 +130,7 @@ function DepartmentsPage() {
                   <span
                     style={{ cursor: "pointer" }}
                     onClick={() =>
-                      setEditing({ id: d.id, value: d.name })
+                      setEditing({ id: d._id, value: d.name })
                     }
                   >
                     {d.name}
@@ -116,7 +141,7 @@ function DepartmentsPage() {
               <td>
                 <button
                   className="danger"
-                  onClick={() => deleteDepartment(d.id)}
+                  onClick={() => deleteDepartment(d._id)}
                 >
                   Delete
                 </button>
