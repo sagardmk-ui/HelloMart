@@ -5,22 +5,39 @@ import logo from "../assets/logo.png";
 export default function Login() {
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const savedPassword =
-    localStorage.getItem("appPassword") || "admin";
-
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault();
+    setError("");
 
-    if (username === "admin" && password === savedPassword) {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ email, password })
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError("Invalid username or password");
+        return;
+      }
+
+      // ✅ LOGIN SUCCESS
       localStorage.setItem("loggedIn", "true");
       navigate("/");
-    } else {
-      setError("Invalid username or password");
+    } catch (err) {
+      setError("Unable to connect to backend");
     }
   }
 
@@ -38,12 +55,12 @@ export default function Login() {
         </p>
 
         <form onSubmit={handleLogin}>
-          {/* Username */}
+          {/* Email */}
           <div className="login-field">
-            <label>Username</label>
+            <label>Email</label>
             <input
-              value={username}
-              onChange={e => setUsername(e.target.value)}
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               autoFocus
             />
           </div>

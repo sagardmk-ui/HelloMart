@@ -6,6 +6,9 @@ import BarcodeScanner from "./components/BarcodeScanner";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 
+/* ✅ BACKEND URL FROM ENV FILE */
+const API_URL = import.meta.env.VITE_API_URL;
+
 /* ================= AUTH GUARD ================= */
 function ProtectedRoute({ children }) {
   const loggedIn = localStorage.getItem("loggedIn") === "true";
@@ -25,16 +28,16 @@ function Home() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [results, setResults] = useState([]);
 
-  /* LOAD PRODUCTS */
+  /* ✅ LOAD PRODUCTS FROM BACKEND */
   useEffect(() => {
-    fetch("http://localhost:4000/products")
+    fetch(`${API_URL}/products`)
       .then(r => r.json())
       .then(setAllProducts)
       .catch(() => setError("Failed to load products"))
       .finally(() => setLoading(false));
   }, []);
 
-  /* LIVE SEARCH */
+  /* ✅ LIVE SEARCH */
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -53,7 +56,7 @@ function Home() {
     setResults(matches);
   }, [query, allProducts]);
 
-  /* CLOSE DROPDOWN */
+  /* ✅ CLOSE DROPDOWN */
   useEffect(() => {
     function handleClickOutside(e) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -66,7 +69,7 @@ function Home() {
       document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /* KEYBOARD NAV */
+  /* ✅ KEYBOARD NAVIGATION */
   function handleKeyDown(e) {
     if (!results.length) return;
 
@@ -82,7 +85,7 @@ function Home() {
     }
   }
 
-  /* BARCODE SCAN */
+  /* ✅ BARCODE SCAN */
   function handleScan(barcode) {
     setShowScanner(false);
     const existing = allProducts.find(p => p.barcode === barcode);
@@ -97,7 +100,7 @@ function Home() {
 
   return (
     <div className="app">
-      {/* ✅ HEADER (NEW LAYOUT WRAPPER ONLY) */}
+      {/* HEADER */}
       <div className="home-header">
         <div>
           <h1>Inventory</h1>
@@ -134,7 +137,7 @@ function Home() {
         </div>
       </div>
 
-      {/* ✅ SEARCH (ALIGNED CONTAINER) */}
+      {/* SEARCH */}
       <div ref={wrapperRef} className="home-search">
         <input
           className="search-input"
@@ -169,7 +172,7 @@ function Home() {
         )}
       </div>
 
-      {/* ✅ ACTION LINKS */}
+      {/* LINKS */}
       <div className="home-links">
         <button
           className="pill-btn secondary"
