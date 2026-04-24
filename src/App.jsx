@@ -6,7 +6,7 @@ import BarcodeScanner from "./components/BarcodeScanner";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 
-/* ✅ BACKEND URL FROM ENV FILE */
+/* ✅ BACKEND URL FROM ENV */
 const API_URL = import.meta.env.VITE_API_URL;
 
 /* ================= AUTH GUARD ================= */
@@ -22,13 +22,13 @@ function Home() {
 
   const [query, setQuery] = useState("");
   const [allProducts, setAllProducts] = useState([]);
-  const [showScanner, setShowScanner] = useState(false);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [results, setResults] = useState([]);
+  const [showScanner, setShowScanner] = useState(false);
 
-  /* ✅ LOAD PRODUCTS FROM BACKEND */
+  /* ✅ LOAD PRODUCTS */
   useEffect(() => {
     fetch(`${API_URL}/products`)
       .then(r => r.json())
@@ -56,7 +56,7 @@ function Home() {
     setResults(matches);
   }, [query, allProducts]);
 
-  /* ✅ CLOSE DROPDOWN */
+  /* ✅ CLOSE SEARCH DROPDOWN */
   useEffect(() => {
     function handleClickOutside(e) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -69,18 +69,20 @@ function Home() {
       document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /* ✅ KEYBOARD NAVIGATION */
+  /* ✅ KEYBOARD NAV */
   function handleKeyDown(e) {
     if (!results.length) return;
 
-    if (e.key === "ArrowDown")
+    if (e.key === "ArrowDown") {
       setActiveIndex(i => Math.min(i + 1, results.length - 1));
+    }
 
-    if (e.key === "ArrowUp")
+    if (e.key === "ArrowUp") {
       setActiveIndex(i => Math.max(i - 1, 0));
+    }
 
     if (e.key === "Enter" && activeIndex >= 0) {
-      navigate(`/products?mode=edit&id=${results[activeIndex].id}`);
+      navigate(`/products?mode=edit&id=${results[activeIndex]._id}`);
       setQuery("");
     }
   }
@@ -88,10 +90,11 @@ function Home() {
   /* ✅ BARCODE SCAN */
   function handleScan(barcode) {
     setShowScanner(false);
+
     const existing = allProducts.find(p => p.barcode === barcode);
 
     if (existing) {
-      navigate(`/products?mode=edit&id=${existing.id}`);
+      navigate(`/products?mode=edit&id=${existing._id}`);
       return;
     }
 
@@ -154,12 +157,10 @@ function Home() {
           <div className="search-dropdown">
             {results.map((p, i) => (
               <div
-                key={p.id}
-                className={`search-item ${
-                  i === activeIndex ? "active" : ""
-                }`}
+                key={p._id}
+                className={`search-item ${i === activeIndex ? "active" : ""}`}
                 onMouseDown={() =>
-                  navigate(`/products?mode=edit&id=${p.id}`)
+                  navigate(`/products?mode=edit&id=${p._id}`)
                 }
               >
                 <strong>{p.itemName}</strong>
